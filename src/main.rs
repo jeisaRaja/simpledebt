@@ -1,5 +1,6 @@
-use rusqlite::{Connection, Result};
+use clap::{Parser, ValueEnum};
 use serde::{Deserialize, Serialize};
+mod database;
 
 #[derive(Serialize, Deserialize, Debug)]
 struct Loan {
@@ -25,24 +26,25 @@ impl User {
     }
 }
 
-#[derive(Debug)]
-struct Person {
-    id: i32,
-    name: String,
-    data: Option<Vec<u8>>,
+#[derive(Debug, ValueEnum, Clone, Copy)]
+enum Command {
+    Pay,
+    Receive,
+    Borrow,
+    Lend,
+    Check,
 }
 
-fn main() -> Result<()> {
-    let db_path = "utang.db";
+#[derive(Parser, Debug)]
+struct Cli {
+    #[arg(value_enum)]
+    command: Command,
+    name: String,
+    amount: u64,
+}
 
-    let conn = Connection::open(db_path)?;
+fn main() {
+    let cli = Cli::parse();
 
-    let user = User::new("frendo".to_string());
-
-    conn.execute(
-        "INSERT INTO users (username, balance) VALUES (?1, ?2)",
-        (&user.username, &user.balance),
-    )?;
-
-    Ok(())
+    println!("{:?}", cli)
 }
