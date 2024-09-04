@@ -8,3 +8,4 @@ serde = { version = "1.0.209", features = ["derive"] }
 rusqlite = {git = "https://github.com/rusqlite/rusqlite"}
 chrono = { version = "0.4.38", features = ["serde"] }
 clap = { version = "4.5.16", features = ["cargo", "derive"] }
+num-format = "0.4.4"

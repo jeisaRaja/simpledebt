@@ -1,4 +1,4 @@
-use rusqlite::{Connection, Error, Result};
+use rusqlite::{params, Connection, Error, Result};
 
 #[derive(Debug)]
 pub struct User {
@@ -27,7 +27,7 @@ impl DB {
         return DB { conn };
     }
 
-    pub fn select_person(&self, name: String) -> Result<User, rusqlite::Error> {
+    pub fn select_person(&self, name: &String) -> Result<User, rusqlite::Error> {
         let mut stmt = self
             .conn
             .prepare("SELECT id, username, balance FROM users WHERE username = ?1")?;
@@ -39,6 +39,14 @@ impl DB {
             })
         })?;
         Ok(user)
+    }
+
+    pub fn create_person(&self, name: &String, balance: Option<u64>) {
+        let _ = self.conn.execute(
+            "INSERT INTO users (username, balance) VALUES (?1,?2)",
+            params![name, balance.unwrap_or(0)],
+        );
+        print!("creating user");
     }
 }
 

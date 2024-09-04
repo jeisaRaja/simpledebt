@@ -1,5 +1,7 @@
 use clap::{Parser, ValueEnum};
+use num_format::{Locale, ToFormattedString};
 use serde::{Deserialize, Serialize};
+use std::io::Write;
 mod database;
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -31,27 +33,69 @@ fn main() {
     let cli = Cli::parse();
     let db = database::DB::new();
 
+    let is_name = check_argument(cli.name.as_ref());
+    let is_amount = check_argument(cli.amount.as_ref());
+
     match cli.command {
         Command::Pay => {
-            if cli.name.is_some() && cli.amount.is_some() {
-                println!("Paying {:?} Rp. {:?}", cli.name, cli.amount)
+            if !(is_name && is_amount) {
+                println!("Provide name and amount");
+                return;
             }
+            let name = cli.name.as_ref().expect("name should be a String");
+            let person = db.select_person(name);
+            if person.is_err() {
+                println!("This person is not in the database, do you want to add them? y/n ");
+                print!(">> ");
+                std::io::stdout().flush().unwrap();
+                let mut ans = String::new();
+                let _tmp = std::io::stdin().read_line(&mut ans).unwrap();
+                ans = ans.trim().to_string();
+                if ans.eq_ignore_ascii_case("y") {
+                    db.create_person(&cli.name.unwrap(), cli.amount)
+                }
+                return;
+            }
+            let amount_separator = cli.amount.unwrap().to_formatted_string(&Locale::en);
+            println!("Paying {} Rp{}", cli.name.unwrap(), amount_separator);
         }
+
         Command::Lend => {
-            println!("Lending")
+            if !(is_name && is_amount) {
+                println!("Provide name and amount")
+            }
+            let person = db.select_person(cli.name.as_ref().expect("name should be a String"));
+            if person.is_err() {
+                println!("This person is not in the database, do you want to add them?");
+                return;
+            }
+            let amount_separator = cli.amount.unwrap().to_formatted_string(&Locale::en);
+            print!("Lending {} Rp.{}", cli.name.unwrap(), amount_separator)
         }
+
         Command::Check => {
             println!("Checking");
-            if cli.name.is_some() {
-                let s = db.select_person(cli.name.expect("name should be a string"));
-                println!("{:?}", s);
+            if !is_name {
+                println!("Provide name")
             }
+            let s = db.select_person(cli.name.as_ref().expect("name should be a String"));
+            if s.is_err() {
+                println!("Error when trying to get name: {:?}", cli.name);
+                return;
+            }
+            println!("{:?}", s);
         }
+
         Command::Borrow => {
             println!("Borrowing")
         }
+
         Command::Receive => {
             println!("Receiving")
         }
     }
+}
+
+fn check_argument<T>(field: Option<&T>) -> bool {
+    field.is_some()
 }
