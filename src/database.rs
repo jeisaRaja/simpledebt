@@ -41,18 +41,27 @@ impl DB {
         Ok(user)
     }
 
-    pub fn create_person(&self, name: &String, balance: Option<u64>) {
+    pub fn create_person(&self, name: &String, balance: u64) {
         let _ = self.conn.execute(
             "INSERT INTO users (username, balance) VALUES (?1,?2)",
-            params![name, balance.unwrap_or(0)],
+            params![name, balance],
         );
         print!("creating user");
+    }
+
+    pub fn update_person(&self, name: &String, update_balance: &u64) {
+        let _ = self
+            .conn
+            .execute(
+                "UPDATE users SET balance = balance + ?1 WHERE username = ?2 ",
+                params![update_balance, name],
+            )
+            .expect("Failed to update user balance");
     }
 }
 
 fn connect_to_db() -> Result<Connection, Error> {
     let db_path = "utang.db";
     let conn = Connection::open(db_path)?;
-
     return Ok(conn);
 }

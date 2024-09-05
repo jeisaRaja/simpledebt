@@ -1,4 +1,5 @@
 use clap::{Parser, ValueEnum};
+use database::DB;
 use num_format::{Locale, ToFormattedString};
 use serde::{Deserialize, Serialize};
 use std::io::Write;
@@ -43,19 +44,13 @@ fn main() {
                 return;
             }
             let name = cli.name.as_ref().expect("name should be a String");
+            let amount = cli.amount.as_ref().expect("amount should be a u64");
             let person = db.select_person(name);
             if person.is_err() {
-                println!("This person is not in the database, do you want to add them? y/n ");
-                print!(">> ");
-                std::io::stdout().flush().unwrap();
-                let mut ans = String::new();
-                let _tmp = std::io::stdin().read_line(&mut ans).unwrap();
-                ans = ans.trim().to_string();
-                if ans.eq_ignore_ascii_case("y") {
-                    db.create_person(&cli.name.unwrap(), cli.amount)
-                }
+                ask_user_to_create_person(&db, name, amount);
                 return;
             }
+            db.update_person(name, amount);
             let amount_separator = cli.amount.unwrap().to_formatted_string(&Locale::en);
             println!("Paying {} Rp{}", cli.name.unwrap(), amount_separator);
         }
@@ -98,4 +93,17 @@ fn main() {
 
 fn check_argument<T>(field: Option<&T>) -> bool {
     field.is_some()
+}
+
+fn ask_user_to_create_person(db: &DB, name: &String, amount: &u64) {
+    println!("This person is not in the database, do you want to add them? y/n ");
+    print!(">> ");
+    std::io::stdout().flush().unwrap();
+    let mut ans = String::new();
+    let _tmp = std::io::stdin().read_line(&mut ans).unwrap();
+    ans = ans.trim().to_string();
+    if ans.eq_ignore_ascii_case("y") {
+        db.create_person(name, *amount)
+    }
+    return;
 }
