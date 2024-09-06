@@ -4,7 +4,7 @@ use rusqlite::{params, Connection, Error, Result};
 pub struct User {
     id: i32,
     username: String,
-    balance: u64,
+    balance: i64,
 }
 
 impl User {
@@ -49,11 +49,21 @@ impl DB {
         print!("creating user");
     }
 
-    pub fn update_person(&self, name: &String, update_balance: &u64) {
+    pub fn give_to(&self, name: &String, update_balance: &u64) {
         let _ = self
             .conn
             .execute(
                 "UPDATE users SET balance = balance + ?1 WHERE username = ?2 ",
+                params![update_balance, name],
+            )
+            .expect("Failed to update user balance");
+    }
+
+    pub fn receive_from(&self, name: &String, update_balance: &u64) {
+        let _ = self
+            .conn
+            .execute(
+                "UPDATE users SET balance = balance - ?1 WHERE username = ?2 ",
                 params![update_balance, name],
             )
             .expect("Failed to update user balance");
