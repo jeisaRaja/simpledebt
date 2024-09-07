@@ -1,3 +1,4 @@
+use chrono::{DateTime, Local};
 use rusqlite::{params, Connection, Error, Result};
 
 #[derive(Debug)]
@@ -5,6 +6,16 @@ pub struct User {
     id: i32,
     username: String,
     balance: i64,
+}
+
+#[derive(Debug)]
+pub struct Transactions {
+    id: i32,
+    user_id: i32,
+    transaction_type: String,
+    amount: i64,
+    date: DateTime<Local>,
+    description: String,
 }
 
 impl User {
@@ -41,32 +52,82 @@ impl DB {
         Ok(user)
     }
 
-    pub fn create_person(&self, name: &String, balance: u64) {
-        let _ = self.conn.execute(
-            "INSERT INTO users (username, balance) VALUES (?1,?2)",
+    pub fn create_person(
+        &self,
+        name: &String,
+        balance: u64,
+        transaction_type: String,
+        description: Option<String>,
+    ) {
+        let _user = self.conn.execute(
+            "INSERT INTO users (username, balance) VALUES (?1,?2) RETURNING id",
             params![name, balance],
         );
-        print!("creating user");
+        if balance != 0 {
+            let user_id = self.conn.last_insert_rowid();
+            let date_now = Local::now().to_string();
+            let _ = self.conn.execute(
+                "INSERT INTO transactions (user_id, transaction_type, amount, date, description)",
+                params![
+                    user_id,
+                    transaction_type,
+                    balance,
+                    date_now,
+                    description
+                ],
+            );
+        };
+        print!("creating user\n");
     }
 
-    pub fn give_to(&self, name: &String, update_balance: &u64) {
-        let _ = self
+    pub fn give_to(
+        &self,
+        name: &String,
+        balance: &u64,
+        transaction_type: String,
+        description: Option<String>,
+    ) {
+        let _give = self
             .conn
             .execute(
                 "UPDATE users SET balance = balance + ?1 WHERE username = ?2 ",
-                params![update_balance, name],
+                params![balance, name],
             )
             .expect("Failed to update user balance");
+        self.insert_transaction(balance, transaction_type, description)
     }
 
-    pub fn receive_from(&self, name: &String, update_balance: &u64) {
+    pub fn receive_from(
+        &self,
+        name: &String,
+        balance: &u64,
+        transaction_type: String,
+        description: Option<String>,
+    ) {
         let _ = self
             .conn
             .execute(
                 "UPDATE users SET balance = balance - ?1 WHERE username = ?2 ",
-                params![update_balance, name],
+                params![balance, name],
             )
             .expect("Failed to update user balance");
+        self.insert_transaction(balance, transaction_type, description)
+    }
+
+    fn insert_transaction(
+        &self,
+        balance: &u64,
+        transaction_type: String,
+        description: Option<String>,
+    ) {
+        let date_now = Local::now().to_string();
+        let user_id = self.conn.last_insert_rowid();
+        let _ = self.conn.execute(
+            "INSERT INTO transactions 
+        (user_id, transaction_type, amount, date, description) 
+     VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![user_id, transaction_type, balance, date_now, description],
+        );
     }
 }
 

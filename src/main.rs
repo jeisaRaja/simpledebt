@@ -1,17 +1,8 @@
 use clap::{Parser, ValueEnum};
 use database::DB;
 use num_format::{Locale, ToFormattedString};
-use serde::{Deserialize, Serialize};
 use std::io::Write;
 mod database;
-
-#[derive(Serialize, Deserialize, Debug)]
-struct Loan {
-    lender: String,
-    borrower: String,
-    amount: u64,
-    description: String,
-}
 
 #[derive(Debug, ValueEnum, Clone, Copy)]
 enum Command {
@@ -47,10 +38,10 @@ fn main() {
             let amount = cli.amount.as_ref().expect("amount should be a u64");
             let person = db.select_person(name);
             if person.is_err() {
-                ask_user_to_create_person(&db, name, amount);
+                ask_user_to_create_person(&db, name, amount, Command::Pay);
                 return;
             }
-            db.give_to(name, amount);
+            db.give_to(name, amount, "pay".to_string(), None);
             let amount_separator = cli.amount.unwrap().to_formatted_string(&Locale::en);
             println!("Paying {} Rp{}", cli.name.unwrap(), amount_separator);
         }
@@ -63,10 +54,10 @@ fn main() {
             let amount = cli.amount.as_ref().expect("amount should be a u64");
             let person = db.select_person(name);
             if person.is_err() {
-                ask_user_to_create_person(&db, name, amount);
+                ask_user_to_create_person(&db, name, amount, Command::Lend);
                 return;
             }
-            db.receive_from(name, amount);
+            db.receive_from(name, amount, "lend".to_string(), None);
             let amount_separator = cli.amount.unwrap().to_formatted_string(&Locale::en);
             print!("Lending {} Rp.{}", cli.name.unwrap(), amount_separator)
         }
@@ -85,11 +76,29 @@ fn main() {
         }
 
         Command::Borrow => {
-            println!("Borrowing")
+            let name = cli.name.as_ref().expect("name should be a String");
+            let amount = cli.amount.as_ref().expect("amount should be a u64");
+            let person = db.select_person(name);
+            if person.is_err() {
+                ask_user_to_create_person(&db, name, amount, Command::Borrow);
+                return;
+            }
+            db.receive_from(name, amount, "borrow".to_string(), None);
+            let amount_separator = cli.amount.unwrap().to_formatted_string(&Locale::en);
+            println!("Borrowing {} Rp{}", cli.name.unwrap(), amount_separator);
         }
 
         Command::Receive => {
-            println!("Receiving")
+            let name = cli.name.as_ref().expect("name should be a String");
+            let amount = cli.amount.as_ref().expect("amount should be a u64");
+            let person = db.select_person(name);
+            if person.is_err() {
+                ask_user_to_create_person(&db, name, amount, Command::Receive);
+                return;
+            }
+            db.receive_from(name, amount, "receiving".to_string(), None);
+            let amount_separator = cli.amount.unwrap().to_formatted_string(&Locale::en);
+            println!("Receiving {} Rp{}", cli.name.unwrap(), amount_separator);
         }
     }
 }
@@ -98,7 +107,7 @@ fn check_argument<T>(field: Option<&T>) -> bool {
     field.is_some()
 }
 
-fn ask_user_to_create_person(db: &DB, name: &String, amount: &u64) {
+fn ask_user_to_create_person(db: &DB, name: &String, amount: &u64, cmd_type: Command) {
     println!("This person is not in the database, do you want to add them? y/n ");
     print!(">> ");
     std::io::stdout().flush().unwrap();
@@ -106,7 +115,14 @@ fn ask_user_to_create_person(db: &DB, name: &String, amount: &u64) {
     let _tmp = std::io::stdin().read_line(&mut ans).unwrap();
     ans = ans.trim().to_string();
     if ans.eq_ignore_ascii_case("y") {
-        db.create_person(name, *amount)
+        let cmd_type = match cmd_type {
+            Command::Pay => "pay".to_string(),
+            Command::Receive => "receive".to_string(),
+            Command::Lend => "lend".to_string(),
+            Command::Borrow => "borrow".to_string(),
+            Command::Check => panic!("Check command cannot create user!"),
+        };
+        db.create_person(name, *amount, cmd_type, None)
     }
     return;
 }
