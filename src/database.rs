@@ -1,5 +1,6 @@
 use chrono::{DateTime, Local};
-use rusqlite::{params, Connection, Error, Result};
+use num_format::Locale;
+use rusqlite::{params, types, Connection, Error, Result};
 
 #[derive(Debug)]
 pub struct User {
@@ -9,7 +10,7 @@ pub struct User {
 }
 
 #[derive(Debug)]
-pub struct Transactions {
+pub struct Transaction {
     id: i32,
     user_id: i32,
     transaction_type: String,
@@ -64,18 +65,14 @@ impl DB {
             params![name, balance],
         );
         if balance != 0 {
+            println!("balance is {}, inserting to transactions", balance);
             let user_id = self.conn.last_insert_rowid();
+            println!("{}", user_id);
             let date_now = Local::now().to_string();
             let _ = self.conn.execute(
-                "INSERT INTO transactions (user_id, transaction_type, amount, date, description)",
-                params![
-                    user_id,
-                    transaction_type,
-                    balance,
-                    date_now,
-                    description
-                ],
-            );
+                "INSERT INTO transactions (user_id, transaction_type, amount, date, description) VALUES (?1,?2,?3,?4,?5)",
+                params![user_id, transaction_type, balance, date_now, description],
+            ).unwrap();
         };
         print!("creating user\n");
     }
@@ -87,6 +84,14 @@ impl DB {
         transaction_type: String,
         description: Option<String>,
     ) {
+        let user_id = self
+            .conn
+            .query_row(
+                "SELECT id FROM users WHERE username = ?1",
+                params![name],
+                |row| row.get(0),
+            )
+            .expect("Failed to fetch user id");
         let _give = self
             .conn
             .execute(
@@ -94,7 +99,7 @@ impl DB {
                 params![balance, name],
             )
             .expect("Failed to update user balance");
-        self.insert_transaction(balance, transaction_type, description)
+        self.insert_transaction(user_id, balance, transaction_type, description)
     }
 
     pub fn receive_from(
@@ -104,6 +109,14 @@ impl DB {
         transaction_type: String,
         description: Option<String>,
     ) {
+        let user_id: i32 = self
+            .conn
+            .query_row(
+                "SELECT id FROM users WHERE username = ?1",
+                params![name],
+                |row| row.get(0),
+            )
+            .expect("Failed to fetch user id");
         let _ = self
             .conn
             .execute(
@@ -111,23 +124,53 @@ impl DB {
                 params![balance, name],
             )
             .expect("Failed to update user balance");
-        self.insert_transaction(balance, transaction_type, description)
+        self.insert_transaction(user_id, balance, transaction_type, description)
     }
 
     fn insert_transaction(
         &self,
+        user_id: i32,
         balance: &u64,
         transaction_type: String,
         description: Option<String>,
     ) {
         let date_now = Local::now().to_string();
-        let user_id = self.conn.last_insert_rowid();
         let _ = self.conn.execute(
             "INSERT INTO transactions 
         (user_id, transaction_type, amount, date, description) 
      VALUES (?1, ?2, ?3, ?4, ?5)",
             params![user_id, transaction_type, balance, date_now, description],
         );
+    }
+
+    pub fn last_transactions(&self, count: u8) -> Result<Vec<Transaction>, rusqlite::Error> {
+        let mut transactions_vec: Vec<Transaction> = vec![];
+        let mut stmt = self.conn.prepare(
+            "SELECT id, user_id, transaction_type, amount, date, description FROM transactions LIMIT ?1;",
+        ).unwrap();
+        let result = stmt.query_map([&count], |row| {
+            let date_str: String = row.get(4)?;
+            let date: DateTime<Local> = date_str.parse::<DateTime<Local>>().map_err(|e| {
+                rusqlite::Error::FromSqlConversionFailure(
+                    2,
+                    rusqlite::types::Type::Text,
+                    Box::new(e),
+                )
+            })?;
+            Ok(Transaction {
+                id: row.get(0).unwrap(),
+                user_id: row.get(1).unwrap(),
+                transaction_type: row.get(2).unwrap(),
+                amount: row.get(3).unwrap(),
+                date,
+                description: row.get(5).unwrap_or("description".to_string()),
+            })
+        });
+
+        for transaction in result? {
+            transactions_vec.push(transaction?)
+        }
+        Ok(transactions_vec)
     }
 }
 

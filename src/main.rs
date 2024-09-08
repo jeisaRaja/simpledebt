@@ -65,7 +65,11 @@ fn main() {
         Command::Check => {
             println!("Checking");
             if !is_name {
-                println!("Provide name")
+                let transactions = db.last_transactions(5).unwrap();
+                for i in transactions {
+                    println!("{:?}", i);
+                }
+                return
             }
             let s = db.select_person(cli.name.as_ref().expect("name should be a String"));
             if s.is_err() {
