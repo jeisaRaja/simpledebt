@@ -1,6 +1,7 @@
 use chrono::{DateTime, Local};
-use num_format::Locale;
-use rusqlite::{params, types, Connection, Error, Result};
+use dirs::home_dir;
+use rusqlite::{params, Connection, Error, Result};
+use std::fs;
 
 #[derive(Debug)]
 pub struct User {
@@ -175,7 +176,40 @@ impl DB {
 }
 
 fn connect_to_db() -> Result<Connection, Error> {
-    let db_path = "utang.db";
-    let conn = Connection::open(db_path)?;
-    return Ok(conn);
+    if let Some(home_path) = home_dir() {
+        let db_dir = home_path.join(".local").join("share").join("utang");
+        let db_path = db_dir.join("utang.db");
+
+        if !db_dir.exists() {
+            fs::create_dir_all(&db_dir).expect("Failed to create database directory")
+        }
+        if !db_path.exists() {
+            let conn = Connection::open(&db_path).unwrap();
+            let _ = conn.execute(
+                "CREATE TABLE users (
+                id integer primary key autoincrement,
+                username text not null,
+                balance integer default 0,
+                UNIQUE(username)
+                );
+                CREATE TABLE transactions (
+                id integer primary key autoincrement,
+                user_id integer not null,
+                transaction_type text not null,
+                amount integer not null,
+                date text not null,
+                description text,
+                foreign key(user_id) references users(id)
+                );
+                ",
+                [],
+            );
+        } else {
+            println!("database found at: {:?}", db_path);
+        }
+        let conn = Connection::open(db_path)?;
+        return Ok(conn);
+    } else {
+        return Err(rusqlite::Error::InvalidQuery);
+    }
 }

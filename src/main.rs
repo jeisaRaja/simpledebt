@@ -1,7 +1,8 @@
 use clap::{Parser, ValueEnum};
 use database::DB;
 use num_format::{Locale, ToFormattedString};
-use std::io::Write;
+use rusqlite::Connection;
+use std::{fs, io::Write};
 mod database;
 
 #[derive(Debug, ValueEnum, Clone, Copy)]
@@ -69,7 +70,7 @@ fn main() {
                 for i in transactions {
                     println!("{:?}", i);
                 }
-                return
+                return;
             }
             let s = db.select_person(cli.name.as_ref().expect("name should be a String"));
             if s.is_err() {
