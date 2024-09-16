@@ -59,7 +59,7 @@ impl DB {
         name: &String,
         balance: u64,
         transaction_type: String,
-        description: Option<String>,
+        description: &String,
     ) {
         let _user = self.conn.execute(
             "INSERT INTO users (username, balance) VALUES (?1,?2) RETURNING id",
@@ -69,10 +69,15 @@ impl DB {
             println!("balance is {}, inserting to transactions", balance);
             let user_id = self.conn.last_insert_rowid();
             println!("{}", user_id);
+            let amount: i64 = match transaction_type.as_str() {
+                "pay" | "lend" => balance as i64,
+                "receive" | "borrow" => -(balance as i64),
+                _ => balance.try_into().unwrap(),
+            };
             let date_now = Local::now().to_string();
             let _ = self.conn.execute(
                 "INSERT INTO transactions (user_id, transaction_type, amount, date, description) VALUES (?1,?2,?3,?4,?5)",
-                params![user_id, transaction_type, balance, date_now, description],
+                params![user_id, transaction_type, amount, date_now, description],
             ).unwrap();
         };
         print!("creating user\n");
@@ -83,7 +88,7 @@ impl DB {
         name: &String,
         balance: &u64,
         transaction_type: String,
-        description: Option<String>,
+        description: &String,
     ) {
         let user_id = self
             .conn
@@ -108,7 +113,7 @@ impl DB {
         name: &String,
         balance: &u64,
         transaction_type: String,
-        description: Option<String>,
+        description: &String,
     ) {
         let user_id: i32 = self
             .conn
@@ -133,7 +138,7 @@ impl DB {
         user_id: i32,
         balance: &u64,
         transaction_type: String,
-        description: Option<String>,
+        description: &String,
     ) {
         let date_now = Local::now().to_string();
         let _ = self.conn.execute(
@@ -147,7 +152,7 @@ impl DB {
     pub fn last_transactions(&self, count: u8) -> Result<Vec<Transaction>, rusqlite::Error> {
         let mut transactions_vec: Vec<Transaction> = vec![];
         let mut stmt = self.conn.prepare(
-            "SELECT id, user_id, transaction_type, amount, date, description FROM transactions LIMIT ?1;",
+            "SELECT id, user_id, transaction_type, amount, date, description FROM transactions ORDER BY ID DESC LIMIT ?1;",
         ).unwrap();
         let result = stmt.query_map([&count], |row| {
             let date_str: String = row.get(4)?;
