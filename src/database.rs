@@ -1,29 +1,65 @@
 use chrono::{DateTime, Local};
+use core::fmt;
 use dirs::home_dir;
 use rusqlite::{params, Connection, Error, Result};
 use std::fs;
 
+pub struct UserWithTransactions {
+    pub user: User,
+    pub transactions: Vec<Transaction>,
+}
+
 #[derive(Debug)]
 pub struct User {
-    id: i32,
-    username: String,
-    balance: i64,
+    pub username: String,
+    pub balance: i64,
 }
 
 #[derive(Debug)]
 pub struct Transaction {
-    id: i32,
-    user_id: i32,
-    transaction_type: String,
-    amount: i64,
-    date: DateTime<Local>,
-    description: String,
+    pub transaction_type: String,
+    pub amount: i64,
+    pub date: DateTime<Local>,
+    pub description: String,
+}
+
+impl core::fmt::Display for UserWithTransactions {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "Name: {}\nBalance: {}\nTransactions:\n",
+            self.user.username, self.user.balance
+        )?;
+
+        write!(
+            f,
+            "{:<13} {:<10} {:<13} {}\n",
+            "Type", "Amount", "Date", "Description"
+        )?;
+        write!(f, "{}\n", "-".repeat(55))?;
+        for (index, transaction) in self.transactions.iter().enumerate() {
+            write!(f, "{}. {}", index + 1, transaction)?
+        }
+        Ok(())
+    }
+}
+
+impl core::fmt::Display for Transaction {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{:<10} {:<10} {:<13} {}\n",
+            self.transaction_type,
+            format!("Rp{}", self.amount),
+            self.date.date_naive().to_string(),
+            self.description
+        )
+    }
 }
 
 impl User {
     fn new(username: String) -> User {
         return User {
-            id: 0,
             username,
             balance: 0,
         };
@@ -43,15 +79,47 @@ impl DB {
     pub fn select_person(&self, name: &String) -> Result<User, rusqlite::Error> {
         let mut stmt = self
             .conn
-            .prepare("SELECT id, username, balance FROM users WHERE username = ?1")?;
+            .prepare("SELECT username, balance FROM users WHERE username = ?1")?;
         let user = stmt.query_row([&name], |row| {
             Ok(User {
-                id: row.get(0)?,
-                username: row.get(1)?,
-                balance: row.get(2)?,
+                username: row.get(0)?,
+                balance: row.get(1)?,
             })
         })?;
         Ok(user)
+    }
+
+    pub fn check_person(&self, name: &String) -> Result<UserWithTransactions, rusqlite::Error> {
+        let mut stmt = self.conn.prepare("SELECT  users.username, users.balance, transactions.transaction_type, transactions.amount, 
+        transactions.description, transactions.date FROM users INNER JOIN transactions ON users.id = transactions.user_id WHERE users.username = ?1 ORDER BY transactions.date DESC LIMIT 5")?;
+        let user = stmt.query_row([&name], |row| {
+            Ok(User {
+                username: row.get(0)?,
+                balance: row.get(1)?,
+            })
+        })?;
+        let mut transactions = vec![];
+        let transaction_rows = stmt.query_map([&name], |row| {
+            let date_string: String = row.get(5)?;
+            let date: DateTime<Local> = date_string.parse::<DateTime<Local>>().map_err(|e| {
+                rusqlite::Error::FromSqlConversionFailure(
+                    2,
+                    rusqlite::types::Type::Text,
+                    Box::new(e),
+                )
+            })?;
+            Ok(Transaction {
+                transaction_type: row.get(2)?,
+                amount: row.get(3)?,
+                description: row.get(4)?,
+                date,
+            })
+        })?;
+        for transaction in transaction_rows {
+            transactions.push(transaction?);
+        }
+
+        Ok(UserWithTransactions { user, transactions })
     }
 
     pub fn create_person(
@@ -164,8 +232,6 @@ impl DB {
                 )
             })?;
             Ok(Transaction {
-                id: row.get(0).unwrap(),
-                user_id: row.get(1).unwrap(),
                 transaction_type: row.get(2).unwrap(),
                 amount: row.get(3).unwrap(),
                 date,
@@ -198,6 +264,19 @@ fn connect_to_db() -> Result<Connection, Error> {
                 UNIQUE(username)
                 );
                 CREATE TABLE transactions (
+                id integer primary key autoincrement,
+                user_id integer not null,
+                transaction_type text not null,
+                amount integer not null,
+                date text not null,
+                description text,
+                foreign key(user_id) references users(id)
+                );
+                ",
+                [],
+            );
+            let _ = conn.execute(
+                "CREATE TABLE transactions (
                 id integer primary key autoincrement,
                 user_id integer not null,
                 transaction_type text not null,

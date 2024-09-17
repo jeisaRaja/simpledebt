@@ -68,6 +68,7 @@ fn main() {
                 .get_one::<String>("description")
                 .unwrap_or(&default_description);
             let person = db.select_person(name);
+            println!("{:?}", person);
             if person.is_err() {
                 ask_user_to_create_person(&db, name, &amount, Command::Pay, description);
                 return;
@@ -121,7 +122,7 @@ fn main() {
                 .unwrap()
                 .parse()
                 .expect("failed to parse amount to u64");
-            let description = sub.get_one::<String>("description").unwrap();
+            let description = sub.get_one::<String>("description").unwrap_or(&default_description);
             let person = db.select_person(name);
             if person.is_err() {
                 ask_user_to_create_person(&db, name, &amount, Command::Receive, description);
@@ -144,12 +145,15 @@ fn main() {
                 }
                 return;
             }
-            let s = db.select_person(name.unwrap());
-            if s.is_err() {
-                println!("Error when trying to get name: {:?}", name);
-                return;
+            let s = db.check_person(name.unwrap());
+            match s {
+                Ok(person) => {
+                    println!("{}", person);
+                }
+                Err(e) => {
+                    println!("Error: {:?}", e);
+                }
             }
-            println!("{:?}", s);
         }
         Some((_, _)) => {
             println!("none")
