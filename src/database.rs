@@ -1,6 +1,7 @@
 use chrono::{DateTime, Local};
 use core::fmt;
 use dirs::home_dir;
+use num_format::{Locale, ToFormattedString};
 use rusqlite::{params, Connection, Error, Result};
 use std::fs;
 
@@ -25,10 +26,19 @@ pub struct Transaction {
 
 impl core::fmt::Display for UserWithTransactions {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let formatted_balance: String;
+        if self.user.balance < 0 {
+            formatted_balance = format!(
+                "-Rp{}",
+                (-self.user.balance).to_formatted_string(&Locale::en)
+            );
+        } else {
+            formatted_balance = format!("Rp{}", self.user.balance.to_formatted_string(&Locale::en));
+        }
         write!(
             f,
             "Name: {}\nBalance: {}\nTransactions:\n",
-            self.user.username, self.user.balance
+            self.user.username, formatted_balance
         )?;
 
         write!(
@@ -46,11 +56,12 @@ impl core::fmt::Display for UserWithTransactions {
 
 impl core::fmt::Display for Transaction {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let formatted_amount = self.amount.to_formatted_string(&Locale::en);
         write!(
             f,
             "{:<10} {:<10} {:<13} {}\n",
             self.transaction_type,
-            format!("Rp{}", self.amount),
+            format!("Rp{}", formatted_amount),
             self.date.date_naive().to_string(),
             self.description
         )
