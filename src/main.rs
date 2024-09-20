@@ -54,7 +54,7 @@ fn main() {
         )
         .get_matches();
     let db = database::DB::new();
-    let default_description = "not provided".to_string();
+    let default_description = "-".to_string();
 
     match matches.subcommand() {
         Some(("pay", sub)) => {
@@ -122,7 +122,9 @@ fn main() {
                 .unwrap()
                 .parse()
                 .expect("failed to parse amount to u64");
-            let description = sub.get_one::<String>("description").unwrap_or(&default_description);
+            let description = sub
+                .get_one::<String>("description")
+                .unwrap_or(&default_description);
             let person = db.select_person(name);
             if person.is_err() {
                 ask_user_to_create_person(&db, name, &amount, Command::Receive, description);
@@ -140,8 +142,13 @@ fn main() {
                 .unwrap_or(5);
             if name.is_none() {
                 let transactions = db.last_transactions(range).unwrap();
+                print!(
+                    "{:<10} {:<10} {:<10} {:<13} {}\n",
+                    "Name","Type", "Amount", "Date", "Description"
+                );
+                print!("{}\n", "-".repeat(60));
                 for i in transactions {
-                    println!("{:?}", i);
+                    print!("{}", i);
                 }
                 return;
             }

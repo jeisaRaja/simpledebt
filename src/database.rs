@@ -18,6 +18,7 @@ pub struct User {
 
 #[derive(Debug)]
 pub struct Transaction {
+    pub username: String,
     pub transaction_type: String,
     pub amount: i64,
     pub date: DateTime<Local>,
@@ -37,8 +38,8 @@ impl core::fmt::Display for UserWithTransactions {
         }
         write!(
             f,
-            "Name: {}\nBalance: {}\nTransactions:\n",
-            self.user.username, formatted_balance
+            "{:<13}: {}\n{:<13}: {}\n{:<13}:\n",
+            "Name", self.user.username, "Balance", formatted_balance, "Transactions"
         )?;
 
         write!(
@@ -59,7 +60,8 @@ impl core::fmt::Display for Transaction {
         let formatted_amount = self.amount.to_formatted_string(&Locale::en);
         write!(
             f,
-            "{:<10} {:<10} {:<13} {}\n",
+            "{:<10} {:<10} {:<10} {:<13} {}\n",
+            self.username,
             self.transaction_type,
             format!("Rp{}", formatted_amount),
             self.date.date_naive().to_string(),
@@ -120,6 +122,7 @@ impl DB {
                 )
             })?;
             Ok(Transaction {
+                username: row.get(0)?,
                 transaction_type: row.get(2)?,
                 amount: row.get(3)?,
                 description: row.get(4)?,
@@ -231,7 +234,8 @@ impl DB {
     pub fn last_transactions(&self, count: u8) -> Result<Vec<Transaction>, rusqlite::Error> {
         let mut transactions_vec: Vec<Transaction> = vec![];
         let mut stmt = self.conn.prepare(
-            "SELECT id, user_id, transaction_type, amount, date, description FROM transactions ORDER BY ID DESC LIMIT ?1;",
+            "SELECT  users.username, transactions.transaction_type, transactions.amount, 
+        transactions.description, transactions.date FROM users INNER JOIN transactions ON users.id = transactions.user_id ORDER BY transactions.date DESC LIMIT ?1;",
         ).unwrap();
         let result = stmt.query_map([&count], |row| {
             let date_str: String = row.get(4)?;
@@ -243,10 +247,11 @@ impl DB {
                 )
             })?;
             Ok(Transaction {
-                transaction_type: row.get(2).unwrap(),
-                amount: row.get(3).unwrap(),
+                username: row.get(0)?,
+                transaction_type: row.get(1)?,
+                amount: row.get(2)?,
                 date,
-                description: row.get(5).unwrap_or("description".to_string()),
+                description: row.get(3).unwrap_or("-".to_string()),
             })
         });
 
